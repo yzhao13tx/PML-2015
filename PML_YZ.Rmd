@@ -1,0 +1,60 @@
+---
+title: "Practical Machine Learning - Course Project"
+author: "matz"
+date: "September 26, 2015"
+output: html_document
+---
+##Introduction and Data Processing
+
+Human Activity Recognition (HAR) is gaining momentum from individuals who want to use the information gathered to track exercise activity, among other reasons. In order to further research, data was collected on 6 individuals who performed various weight lifting exercises with accelerometers located on the individual in specific locations. The purpose of this assignment is to develop a model that will predict, based on the accelerometer data, whether or not the exercise was done correctly, or which way it was done incorrectly. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har 
+
+The original data has 160 variables and 19622 observations. First, the data needs to be cleaned up to get rid of variables with mostly blank cells, "#DIV/0" or "NA" values. By identifying columns containing these values, the number of variables is reduced from 160 to 53. 
+
+```{r}
+train<-read.csv("pml-training.csv",na.strings=c("","NA","#DIV/0!"))
+train<-train[,colSums(is.na(train))==0]
+train<-train[,-c(1:7)]
+```
+
+##Tree Model
+The 19,622 observations are split into a training subset (60%) and a testing subset (40%). A tree model is first constructed on the training data, and used to predict the testing data outcome (classe), so that the results are validated.
+
+```{r}
+library(caret)
+set.seed(42053)
+inTrain<-createDataPartition(y=train$classe,p=0.6,list=FALSE)
+training<-train[inTrain,]
+testing<-train[-inTrain,]
+fit_tree<-train(classe ~.,method="rpart",data=training)
+print(fit_tree$finalModel)
+result<-predict(fit_tree,newdata=testing)
+confusionMatrix(result,testing$classe)
+```
+
+The accuracy of the tree model is only 51%. 
+
+##Random Forest Model
+A more accurate model is necessary to better classify the test cases. Since Random Forest takes a long time to run with this large dataset, "resampling" was turned off to speed up the fitting.
+```{r}
+fitControl <- trainControl(method = "none")
+tgrid <- expand.grid(mtry=c(6)) 
+fit_rf<-train(classe~ .,data=training,method="rf",trControl=fitControl,tuneGrid=tgrid)
+pred<-predict(fit_rf,testing)
+confusionMatrix(pred,testing$classe)
+```
+
+Compared to the tree model, random forest predicts the testing data set with 99.5% accuracy. 
+
+##Predict Test Cases for Submission
+```{r, echo=FALSE}
+
+test_cases<-read.csv("pml-testing.csv",na.strings=c("","NA","#DIV/0!"))
+test_cases<-test_cases[,colSums(is.na(train))==0]
+test_cases<-test_cases[,-c(1:7)]
+pred_test_cases<-predict(fit_rf,test_cases)
+```
+The 20 test cases are predicted by the Random Forest model and the results will be submitted. 
+
+```{r, echo=FALSE}
+hist(as.numeric(pred_test_cases),main="Prediction of 20 Test Cases")
+```
